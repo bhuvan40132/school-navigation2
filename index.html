@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>School 360° Navigation</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+:root{
+  --glass: rgba(0,0,0,0.55);
+  --white:#fff;
+  --muted:#cfcfcf;
+  --gold:#FFD700;
+  --top:56px;
+  --bottom:90px;
+}
+
+/* RESET */
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Inter",system-ui,sans-serif;}
+body{height:100vh;background:#000;overflow:hidden;}
+
+/* ===== SAFE LAYOUT ===== */
+.app{
+  position:relative;
+  width:100%;
+  height:100%;
+}
+
+/* MAP SAFE AREA */
+#viewer{
+  position:absolute;
+  top:var(--top);
+  bottom:var(--bottom);
+  left:0;
+  right:0;
+  z-index:1;
+}
+#map{width:100%;height:100%;}
+
+/* ===== WELCOME ===== */
+#welcomeOverlay{
+  position:fixed;inset:0;
+  background:#000;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:200;
+}
+#welcomeOverlay h1{
+  font-family:'Playfair Display',serif;
+  font-size:28px;
+  color:var(--gold);
+  text-align:center;
+  animation:fadeInOut 3s forwards;
+}
+@keyframes fadeInOut{
+  0%{opacity:0;transform:translateY(20px)}
+  30%{opacity:1;transform:translateY(0)}
+  80%{opacity:1}
+  100%{opacity:0}
+}
+
+/* ===== TOP BAR ===== */
+.top-bar{
+  position:fixed;
+  top:0;left:0;right:0;
+  height:var(--top);
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--glass);
+  backdrop-filter:blur(14px);
+  color:var(--white);
+  z-index:50;
+}
+
+/* ===== CONTROLS ===== */
+.controls{
+  position:absolute;
+  right:14px;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  z-index:20;
+}
+.control-btn{
+  width:44px;height:44px;
+  border-radius:50%;
+  background:var(--glass);
+  color:var(--white);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav{
+  position:fixed;
+  bottom:12px;
+  left:50%;
+  transform:translateX(-50%);
+  width:calc(100% - 24px);
+  height:78px;
+  background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(0,0,0,0.7));
+  backdrop-filter:blur(18px);
+  border-radius:26px;
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  color:var(--white);
+  z-index:60;
+}
+.nav-item{text-align:center;font-size:11px;cursor:pointer}
+.nav-item span{display:block;font-size:22px;margin-bottom:6px}
+
+/* ===== PANEL ===== */
+.panel{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:-100%;
+  height:calc(100% - var(--top) - var(--bottom));
+  background:rgba(0,0,0,0.92);
+  backdrop-filter:blur(16px);
+  border-radius:24px 24px 0 0;
+  padding:16px;
+  transition:bottom .35s ease;
+  z-index:70;
+}
+.panel.active{bottom:var(--bottom);}
+.panel ul{
+  max-height:100%;
+  overflow-y:auto;
+  padding-right:6px;
+}
+.panel li{
+  list-style:none;
+  padding:14px 6px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  color:var(--muted);
+  cursor:pointer;
+}
+
+/* ===== PHOTO VIEWER ===== */
+#photoViewer{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.95);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+}
+#photoViewer img{
+  width:92%;
+  max-height:80%;
+  object-fit:contain;
+  border-radius:14px;
+}
+.photo-controls{
+  position:absolute;
+  bottom:24px;
+  display:flex;
+  gap:18px;
+}
+.photo-btn{
+  padding:12px 18px;
+  background:var(--glass);
+  border-radius:14px;
+  color:var(--white);
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<div id="welcomeOverlay">
+  <h1>Welcome to<br>Mother’s Pride Pataudi</h1>
+</div>
+
+<div class="top-bar">
+  <div>SCHOOL</div>
+  <div>Main Entrance</div>
+  <div>🧭</div>
+</div>
+
+<div id="viewer">
+  <div id="map"></div>
+  <div class="controls">
+    <div class="control-btn">＋</div>
+    <div class="control-btn">－</div>
+    <div class="control-btn">🔄</div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item" onclick="openPanel('buildings')"><span>🏫</span>Buildings</div>
+  <div class="nav-item" onclick="openPanel('grounds')"><span>🏃</span>Grounds</div>
+  <div class="nav-item"><span>🗺</span>Map</div>
+  <div class="nav-item"><span>ℹ</span>Info</div>
+</div>
+
+<div class="panel" id="panel">
+  <ul id="panelList"></ul>
+</div>
+
+<div id="photoViewer">
+  <img id="photoImage">
+  <div class="photo-controls">
+    <div class="photo-btn" onclick="prevPhoto()">⬅</div>
+    <div class="photo-btn" onclick="nextPhoto()">➡</div>
+    <div class="photo-btn" onclick="closeViewer()">✖</div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+setTimeout(()=>welcomeOverlay.remove(),3000);
+
+/* MAP */
+const map=L.map('map').setView([28.3430,76.7608],18);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+/* DATA */
+const data={
+  buildings:["Main Block","Science lab","Library","Auditorium","ICT Room","FLOOR 1 wr","STAFF ROOM","coordinator ROOM","GRADE 9","GRADE 6","ramp"],
+  grounds:["Playground","Football Ground","Basketball Court", "reception"]
+};
+
+/* PHOTO SETS (UNCHANGED FROM YOU) */
+const photoSets = { /* your full photoSets exactly as provided */ 
+  "Main Block":[
+     "https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+     "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+     "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+    "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+    "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+     "https://i.ibb.co/FbfBDg1Z/Whats-App-Image-2026-01-23-at-11-54-18-AM-1.jpg",
+     "https://i.ibb.co/6RzTGk6J/Whats-App-Image-2026-01-23-at-11-54-18-AM.jpg",
+     "https://i.ibb.co/N22sJgCh/Whats-App-Image-2026-01-23-at-11-54-17-AM-1.jpg",
+     "https://i.ibb.co/ccj2rYmT/Whats-App-Image-2026-01-23-at-11-54-17-AM.jpg"
+  ],
+  "GRADE 6":[
+    
+    "https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+    "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+         "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+              "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+              "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+    "https://i.ibb.co/j97tkQFT/Whats-App-Image-2026-01-23-at-1-16-36-PM-1.jpg",
+    "https://i.ibb.co/6RzTGk6J/Whats-App-Image-2026-01-23-at-11-54-18-AM.jpg",
+    "https://i.ibb.co/yn9DYnjn/Whats-App-Image-2026-01-23-at-1-16-36-PM.jpg"
+  ],
+  "FLOOR 1 wr":["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+         "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+              "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+                   "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                                 "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+        "https://i.ibb.co/zhRB1yCb/Whats-App-Image-2026-01-24-at-1-28-55-PM-4.jpg"
+],
+"Library": ["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg", 
+     "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+          "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+               "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                             "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+  "https://i.ibb.co/zTQJKhrh/Whats-App-Image-2026-01-23-at-10-54-10-AM.jpg",
+"https://i.ibb.co/HDNMxHF2/Whats-App-Image-2026-01-24-at-1-28-54-PM.jpg", 
+"https://i.ibb.co/KjKydRCN/Whats-App-Image-2026-01-24-at-1-28-54-PM-1.jpg"
+],
+"GRADE 9": ["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+     "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+     "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+     "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+    "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+  "https://i.ibb.co/WWBnpwjM/Whats-App-Image-2026-01-24-at-2-10-58-PM.jpg",
+"https://i.ibb.co/p6wRG3yN/Whats-App-Image-2026-01-24-at-2-10-59-PM-1.jpg", 
+"https://i.ibb.co/J8sjhsG/Whats-App-Image-2026-01-24-at-2-10-59-PM.jpg" 
+],
+"Science lab": ["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+     "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+          "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+               "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                             "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+  "https://i.ibb.co/Ng7wyc3k/Whats-App-Image-2026-01-29-at-11-38-39-2.jpg", 
+"https://i.ibb.co/vCGykGr8/Whats-App-Image-2026-01-24-at-2-10-58-PM-2.jpg" 
+], 
+"ramp": [
+  "https://i.ibb.co/zTjmTkfK/Whats-App-Image-2026-01-24-at-2-34-47-PM.jpg"
+],
+"coordinator ROOM": ["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+     "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+          "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+               "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                             "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+  "https://i.ibb.co/k68N2LR6/Whats-App-Image-2026-01-24-at-2-10-59-PM-2.jpg",
+"https://i.ibb.co/d4tFK9xs/Whats-App-Image-2026-01-24-at-2-11-00-PM.jpg"
+],
+ "STAFF ROOM": ["https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+      "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+           "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+                "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                              "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+  "https://i.ibb.co/7Jy97vMv/Whats-App-Image-2026-01-24-at-1-28-55-PM-3.jpg"
+], 
+  "ICT Room": [
+    "https://i.ibb.co/tMk0rk3d/Whats-App-Image-2026-01-29-at-11-38-42.jpg",
+         "https://i.ibb.co/Y7zWGxRR/Whats-App-Image-2026-01-29-at-11-38-41-1.jpg",
+              "https://i.ibb.co/BKLnp9cm/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+                   "https://i.ibb.co/p6yCwtpC/Whats-App-Image-2026-01-29-at-11-38-40.jpg",
+                                 "https://i.ibb.co/3yhcScf4/Whats-App-Image-2026-01-29-at-11-38-39-3.jpg",
+    "https://i.ibb.co/zTQJKhrh/Whats-App-Image-2026-01-23-at-10-54-10-AM.jpg",
+    "https://i.ibb.co/nqyDtN2P/Whats-App-Image-2026-01-23-at-10-54-09-AM-1.jpg",
+    "https://i.ibb.co/4Z4CvdkG/Whats-App-Image-2026-01-23-at-10-54-09-AM.jpg",
+    "https://i.ibb.co/zTB21R5Q/Whats-App-Image-2026-01-21-at-2-02-31-PM.jpg"
+  ],
+  "reception": ["https://i.ibb.co/0pKHhMMh/Whats-App-Image-2026-01-29-at-11-38-42.jpg", 
+  "https://i.ibb.co/PGSMKBkN/Whats-App-Image-2026-01-29-at-11-38-41-2.jpg", 
+"https://i.ibb.co/N6nTK0BQ/Whats-App-Image-2026-01-29-at-11-38-41.jpg",
+"https://i.ibb.co/qL6LsJPH/Whats-App-Image-2026-01-29-at-11-38-40-2.jpg",
+"https://i.ibb.co/xKRd4MG3/Whats-App-Image-2026-01-29-at-11-38-40-1.jpg"
+
+
+]
+  
+   
+};
+
+let currentPhotos=[],photoIndex=0;
+const panel=document.getElementById("panel");
+const panelList=document.getElementById("panelList");
+
+function openPanel(type){
+  panelList.innerHTML="";
+  data[type].forEach(item=>{
+    const li=document.createElement("li");
+    li.textContent=item;
+    li.onclick=()=>photoSets[item] && openViewer(photoSets[item]);
+    panelList.appendChild(li);
+  });
+  panel.classList.add("active");
+}
+
+function openViewer(p){
+  currentPhotos=p;
+  photoIndex=0;
+  photoImage.src=currentPhotos[0];
+  photoViewer.style.display="flex";
+}
+function nextPhoto(){
+  if(photoIndex<currentPhotos.length-1)photoImage.src=currentPhotos[++photoIndex];
+}
+function prevPhoto(){
+  if(photoIndex>0)photoImage.src=currentPhotos[--photoIndex];
+}
+function closeViewer(){
+  photoViewer.style.display="none";
+}
+
+viewer.onclick=()=>panel.classList.remove("active");
+</script>
+</body>
+</html>
